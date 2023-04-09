@@ -16,7 +16,7 @@ def main():
     else:
         id = 0
         
-    # get ip address and port of the server replica from configuration file
+    # get ip address and port of the server replicas from configuration file
     replica = config.replicas[id]
 
     try:

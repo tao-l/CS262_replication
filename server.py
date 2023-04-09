@@ -4,8 +4,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 from concurrent import futures
 import grpc
-import chat_service_pb2_grpc
-import chat_service_pb2
+import rpc_service_pb2_grpc
+import rpc_service_pb2
 
 import socket
 import sys
@@ -15,8 +15,6 @@ import queue
 # import serverFunction
 
 import raft as raft
-import raft_service_pb2
-import raft_service_pb2_grpc
 
 import config
 
@@ -39,7 +37,7 @@ GENERAL_ERROR = 199
 SERVER_ERROR = 190
 
 
-class ChatServiceServicer(chat_service_pb2_grpc.ChatServiceServicer):
+class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
     """ Customized initialization """
     def my_init(self, replicas, my_id):
@@ -51,15 +49,8 @@ class ChatServiceServicer(chat_service_pb2_grpc.ChatServiceServicer):
 
         # create a RAFT server and start it
         self.rf = raft.RaftServiceServicer(replicas, id, self.apply_queue)
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=128))
-        raft_service_pb2_grpc.add_RaftServiceServicer_to_server(self.rf, server)
-        my_ip_addr = replicas[my_id].ip_addr
-        raft_port = replicas[my_id].raft_port
-        server.add_insecure_port(my_ip_addr + ":" + raft_port)
-        print(f"  RAFT server {my_id} starts at {my_ip_addr}:{raft_port}")
-        server.start()
-        threading.Thread(target=server.wait_for_termination, args=()).start()
-    
+        self.rf.my_start()
+     
 
     """ The RPC service provided to the client.
         Input:
@@ -67,7 +58,7 @@ class ChatServiceServicer(chat_service_pb2_grpc.ChatServiceServicer):
         Yield:
             a stream of responses (each a pb2 ojbect)
     """
-    def rpc_request(self, request, context):
+    def rpc_chat_serve(self, request, context):
         logging.info("Chat: receives: " + request.message)
 
         # Try to add the request to the log, using the low-level mechanism
@@ -76,11 +67,10 @@ class ChatServiceServicer(chat_service_pb2_grpc.ChatServiceServicer):
         # If this request cannot be added because this server is not the leader: 
         #   return error message to the client
         if not is_leader:
-            res = chat_service_pb2.Response(op=request.op)
-            res.status = SERVER_ERROR
-            res.message = "Server is not leader."
-            yield res
-            return 
+            response = rpc_service_pb2.ChatResponse(op=request.op)
+            response.status = SERVER_ERROR
+            response.messages.append("Server is not leader.")
+            return response
         
         # Now, we know that the server is the leader:
         # wait until the request is applied
@@ -92,10 +82,9 @@ class ChatServiceServicer(chat_service_pb2_grpc.ChatServiceServicer):
 
         logging.info(f"Chat: waiting for event, index={index}")
         self.results[index][0].wait()         # wait for the event
-        responses = self.results[index][1]     # get the responses
+        response = self.results[index][1]     # get the responses
         logging.info(f"Chat: got event, index={index}")
-        for r in responses:
-            yield r
+        return response
     
 
     """ A loop that continuously applies requests that have been commited by RAFT
@@ -106,24 +95,31 @@ class ChatServiceServicer(chat_service_pb2_grpc.ChatServiceServicer):
             index = log_entry.index
             request = log_entry.command
 
-            self.lock.acquire()
-            # apply request and record results
-            self.results[index][1] = self.apply(request)
-            # set the event to notify the waiting thread
-            self.results[index][0].set()
-            self.lock.release()
+            with self.lock:
+                # apply request, and (if needed) record results and notify the waiting thread. 
+                if index not in self.results:
+                    # This case means that the request is not initiated by the current server; 
+                    # it is replicated from other servers' logs instead.
+                    # So, we don't need to record the result and respond to client. 
+                    # We can just apply the request to the state machine
+                    logging.info(f"     Apply request index = {index},  message={request.message}")
+                    self.apply(request)
+                else:
+                    # Otherwise, we need to record the results and notify the current server
+                    self.results[index][1] = self.apply(request)
+                    # set the event to notify the waiting thread
+                    self.results[index][0].set()
     
 
     """ Apply request:
-        Return:
-            list of resopnses 
+        Return: resopnse to the client 
         ****  must acquire lock before calling  ****
     """
     def apply(self, request):
         assert self.lock.locked()
-        res = chat_service_pb2.Response()
-        res.message = request.message + " (is applied)"
-        return [res]
+        res = rpc_service_pb2.ChatResponse()
+        res.messages.append( request.message + " (is applied)" )
+        return res
 
 
 if __name__ == "__main__":
@@ -154,9 +150,7 @@ if __name__ == "__main__":
     
     threading.Thread(target=servicer.apply_request_loop, args=()).start()
 
-    chat_service_pb2_grpc.add_ChatServiceServicer_to_server(
-        servicer, server
-    )
+    rpc_service_pb2_grpc.add_ChatServiceServicer_to_server( servicer, server )
 
     my_ip_addr = config.replicas[id].ip_addr
     my_client_port = config.replicas[id].client_port
