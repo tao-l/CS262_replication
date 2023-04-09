@@ -1,0 +1,18 @@
+syntax = "proto3"; 
+
+package raft_service;
+
+service RaftService{
+    rpc rpc_append_entries(AE_Request) returns (AE_Response) {}
+}
+
+message AE_Request{
+    string message = 1;  
+}
+
+message AE_Response{
+    string message = 4;
+}
+
+// generate code by running the following command:
+//   python3 -m grpc_tools.protoc -I. --python_out=. --pyi_out=. --grpc_python_out=. raft_service.proto

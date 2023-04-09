@@ -1,0 +1,37 @@
+syntax = "proto3"; 
+
+package chatroom;
+
+service ChatRoom {
+    rpc rpc_create_account(User) returns (GeneralResponse) {}
+    rpc rpc_check_account(User) returns (GeneralResponse) {}
+    rpc rpc_list_account(Wildcard) returns (stream User) {}
+    rpc rpc_delete_account(User) returns (GeneralResponse) {}
+    rpc rpc_send_message(ChatMessage) returns (GeneralResponse) {}
+    rpc rpc_fetch_message(FetchRequest) returns (stream ChatMessage) {}
+}
+
+message User {
+    string username = 1; 
+}
+
+message ChatMessage{
+    string username = 1;          // the username of the user who sends the message 
+    string target_name = 2;       // the username of the user who receives the message
+    string message = 3;
+    int32 status = 4; 
+}
+
+message Wildcard {
+    string wildcard = 1; 
+}
+
+message FetchRequest {
+    int32 msg_id = 1; 
+    string username = 2; 
+}
+
+message GeneralResponse {
+    int32 status = 1;
+    string message = 2; 
+}
