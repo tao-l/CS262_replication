@@ -2,6 +2,12 @@ import threading
 import queue
 from time import sleep
 
+e = threading.Event()
+print("e.wait return:", e.wait(1))
+
+e.set()
+print("e.wait return", e.wait(2))
+
 def timer_func():
     print("  timer func")
 

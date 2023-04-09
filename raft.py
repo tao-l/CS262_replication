@@ -66,13 +66,14 @@ class RaftServiceServicer(raft_service_pb2_grpc.RaftServiceServicer):
             else:
                 self.replica_stubs.append(None)
         
-        self.match_index = [0 for i in range(self.n_replicas)]
+        # Leader's states: reinitialized after election
+        self.match_index = None
         self.next_index = None
 
-
-        self.even_queue = queue.Queue()
+        # events: used to notify the main loop
         self.heard_heartbeat = False
-        self.heard_grant_vote = False
+        self.grant_vote = False
+        self.received_majority_vote = threading.Event()
 
         # init done, run the main loop
         threading.Thread(target=self.main_loop, args=()).start()
@@ -83,8 +84,11 @@ class RaftServiceServicer(raft_service_pb2_grpc.RaftServiceServicer):
 
 
     def rpc_append_entries(self, AE_request, context):
-        logging.info(f"  Raft [{self.my_id}] - AE - receives: " + AE_request.message)
+        logging.info(f"  RAFT [{self.my_id}] - AE - receives: " + AE_request.message)
         self.heard_heartbeat = True
+        if self.my_id == 1:
+            with self.lock:
+                self.convert_to_follower(100)
         return raft_service_pb2.AE_Response()
     
 
@@ -101,19 +105,19 @@ class RaftServiceServicer(raft_service_pb2_grpc.RaftServiceServicer):
                          If no, this command is not added to the log. 
     """
     def new_entry(self, command):
-        logging.info(f"  Raft [{self.my_id}] - new entry: " + command.message)
+        logging.info(f"  RAFT [{self.my_id}] - new entry: " + command.message)
         
         try:
             self.lock.acquire()
 
             if self.state != Leader:
-                logging.info(f"      Raft [{self.my_id}]: not leader, cannot add entry")
+                logging.info(f"      RAFT [{self.my_id}]: not leader, cannot add entry")
                 return (-1, self.current_term, False)
             
             term = self.current_term
             index = self.get_last_index() + 1
             self.logs.append( LogEntry(term, index, command) )
-            logging.info(f"  Raft [{self.my_id}] adds entry {term, index} to log")
+            logging.info(f"  RAFT [{self.my_id}] adds entry {term, index} to log")
             return (index, term, True)
         
         finally:
@@ -124,7 +128,7 @@ class RaftServiceServicer(raft_service_pb2_grpc.RaftServiceServicer):
         Lock must be held before calling
     """
     def broadcast_append_entries(self):
-        logging.debug(f"  RAFT [{self.my_id}] - broadcast:")
+        logging.info(f"  RAFT [{self.my_id}] - broadcast AE:")
         assert self.lock.locked()
         if self.state != Leader:
             return
@@ -152,13 +156,13 @@ class RaftServiceServicer(raft_service_pb2_grpc.RaftServiceServicer):
                 self.last_applied = i
     
     def new_entry_tmp(self, command):
-        logging.info(f"  Raft [{self.my_id}] - new entry: " + command.message)
+        logging.info(f"  RAFT [{self.my_id}] - new entry: " + command.message)
         
         self.lock.acquire()
         term = self.current_term
         index = len(self.logs)
         self.logs.append( LogEntry(term, index, command) )
-        logging.info(f"  Raft [{self.my_id}] adds entry {term, index} to log")
+        logging.info(f"  RAFT [{self.my_id}] adds entry {term, index} to log")
         self.lock.release()
 
         is_leader = True
@@ -183,39 +187,107 @@ class RaftServiceServicer(raft_service_pb2_grpc.RaftServiceServicer):
         return (index, term, is_leader)
     
 
-    def convert_to_candidate(self):
-        logging.info(f"  Raft [{self.my_id}] - convert to candidate")
-        with self.lock:
-            if self.state != Follower:
-                return
+    """ Broadcast request_vote RPC to all Raft replicas.
+        If receive a majority of vote, will set the event to notify the main loop
+        *** must acquire lock before calling ***
+    """
+    def broadcast_request_vote(self):
+        logging.info(f"  RAFT [{self.my_id, self.state}] - broadcast request vote")
+        assert self.lock.locked()
+        print(self.current_term)
+        if self.current_term == 10:
+            print("Receive majority vote !!!! ")
+            self.received_majority_vote.set()
+    
 
-    # Reset event queue
-    # lock must be held before calling this function
-    # def reset_event_queue(self):
-    #     assert self.lock.locked()
-    #    self.event_queue = queue.Queue()
+    """ Convert the current RAFT server to Follower
+        - Input: the new term number
+        Lock must be held before calling this
+    """
+    def convert_to_follower(self, term):
+        logging.info(f"  RAFT [{self.my_id, self.state}] - convert to follower - old term: {self.current_term} - new term: {term}")
+        assert self.lock.locked
+        self.state = Follower
+        self.current_term = term
+        self.vote_for = None
+
+
+    """ Convert the current RAFT server to Candidate
+    """
+    def convert_to_candidate(self):
+        logging.info(f"  RAFT [{self.my_id, self.state}] - convert to candidate")
+        with self.lock:
+            self.state = Candidate
+            self.reset_events()
+            self.current_term += 1
+            self.vote_for = self.my_id
+            self.vote_count = 1
+            
+            self.broadcast_request_vote()
+    
+    
+    """ (Try to) convert the current RAFT server to Leader
+    """
+    def convert_to_leader(self):
+        logging.info(f"  RAFT [{self.my_id, self.state}] - try convert to leader")
+        with self.lock:
+            # state may change (to Follower) before this function is called, 
+            # so need to check the state
+            if self.state != Candidate:
+                return 
+            
+            self.state = Leader
+            self.reset_events()
+
+            last_log_index = self.get_last_index()
+            self.next_index = [last_log_index + 1 for i in range(self.n_replicas)]
+            self.match_index = [0 for i in range(self.n_replicas)]
+
+            self.broadcast_append_entries()
+
+
+    """ Reset events. 
+        lock must be held before calling this function
+    """
+    def reset_events(self):
+        assert self.lock.locked()
+        self.heard_heartbeat = False
+        self.grant_vote = False
+        self.received_majority_vote.clear()
 
 
     def main_loop(self):
         while True:
-            # print(self.state, self.lock.locked())
-            state = self.state
+            with self.lock:
+                state = self.state
+            # print(state)
+            
             if state == Leader:
                 # sleep(config.leader_broadcast_interval / 1000)
                 sleep(1)
-                with self.lock: 
-                    self.broadcast_append_entries()
+                # at this point, the state of the server may already change (to Follower)
+                with self.lock:
+                    if self.state == Leader:
+                        self.broadcast_append_entries()
 
             elif state == Follower:
                 sleep(2)
                 with self.lock:
-                    to_convert_to_candidate =  (not self.heard_heartbeat) and (not self.heard_grant_vote)
+                    to_convert_to_candidate =  (not self.heard_heartbeat) and (not self.grant_vote)
                     self.heard_heartbeat = False
-                    self.heard_grant_vote = False
+                    self.grant_vote = False
                 if to_convert_to_candidate:
                     self.convert_to_candidate()
             
             elif state == Candidate:
-                
+                ok =  self.received_majority_vote.wait(2)
+                # received majority vote, can convert to leader
+                # but state may also have changed (to Follower)
+                if ok:
+                    self.convert_to_leader()
+                elif self.state == Follower:
+                    pass
+                else:
+                    self.convert_to_candidate()
 
 
