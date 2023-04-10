@@ -35,5 +35,5 @@ The state machine `state_machine` implements the main logic of the chat server. 
 #### Why this design? 
 Our design completely separates the logic concensus/replication algorithm (RAFT) and the logic of the state machine (the specific chat services).
 RAFT does not know anything about how the state machine is implemented and the state machine does not need to worry about replication. 
-This makes both the RAFT code and the state_machine code useable in other problems. 
+This makes the design more modular and makes all the RAFT code, the state_machine code, and the server code useable in other problems. 
 
