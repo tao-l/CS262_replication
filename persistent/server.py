@@ -142,5 +142,6 @@ if __name__ == "__main__":
     my_client_port = config.replicas[id].client_port
     server.add_insecure_port(my_ip_addr + ":" + my_client_port)
     server.start()
+    print(f" ====== Chat server [{id}] starts at {my_ip_addr}:{my_client_port} =======")
     server.wait_for_termination()
 

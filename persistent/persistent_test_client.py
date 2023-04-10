@@ -25,7 +25,7 @@ for i in range(n_replicas):
 def rpc_try_all(chat_request, stubs):
     for i in range(len(stubs)):
         try:
-            print(f"Trying server [{i}]")
+            # print(f"Trying server [{i}]")
             response = stubs[i].rpc_chat_serve(chat_request)
             # print(tmp)
             if response.status != config.SERVER_ERROR:
@@ -174,4 +174,11 @@ def test_send_and_fetch_message():
 
 if __name__ == "__main__":
     (response, ok) = create_account_once("user1")
-    print(response.messages[0], "    # The fist time should succeed, the second time should fail")
+    print(response.messages[0], "\n     ########## The fist time should succeed, the second time should fail")
+
+    (response, ok) = fetch_message_once("user1", 1)
+    print(response.messages, "\n     ########## The first time should be empty.   The second time is not empty.  Each time gets longer")
+
+    (response, ok) = send_message_once("user1", "user1", "a message")
+
+    
