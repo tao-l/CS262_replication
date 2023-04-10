@@ -34,7 +34,7 @@ import config
 class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
     """ Customized initialization """
-    def my_init(self, replicas, my_id):
+    def my_init(self, replicas, my_id, need_persistent):
         self.state_machine = ChatStateMachine()   # state_machine
         self.results = dict()   # a dictionary that stores the response for each client request
 
@@ -44,7 +44,7 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
         self.apply_queue = queue.Queue()
 
         # create a RAFT instance and start it
-        self.rf = raft.RaftServiceServicer(replicas, id, self.apply_queue)
+        self.rf = raft.RaftServiceServicer(replicas, my_id, self.apply_queue, need_persistent)
         self.rf.my_start()
     
 
@@ -130,22 +130,9 @@ if __name__ == "__main__":
     id = int(sys.argv[1])
     assert 0 <= id < config.n_replicas
 
-    mode = "local"    
-    if mode == "local":
-        # Local mode:   set the HOST to be 127.0.0.1
-        HOST = "127.0.0.1"
-        print("Local mode. \n  Client should connect to", HOST)
-    else:
-        # Network mode:   get the IP address of the server and print it.   
-        HOST = "0.0.0.0"
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            ip_addr = s.getsockname()[0]
-        print("Network mode. \n  Server's IP address:", ip_addr) 
-
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=128))
     servicer = ChatServiceServicer()
-    servicer.my_init(config.replicas, id)
+    servicer.my_init(config.replicas, id, need_persistent=config.need_persistent)
     
     threading.Thread(target=servicer.apply_request_loop, args=()).start()
 
@@ -155,5 +142,6 @@ if __name__ == "__main__":
     my_client_port = config.replicas[id].client_port
     server.add_insecure_port(my_ip_addr + ":" + my_client_port)
     server.start()
+    print(f" ====== Chat server [{id}] starts at {my_ip_addr}:{my_client_port} =======")
     server.wait_for_termination()
 

@@ -35,6 +35,12 @@ message LogEntry{
     ChatRequest command = 3; 
 }
 
+message Persistent {
+    int64 current_term = 1;
+    int32 voted_for = 2; 
+    repeated LogEntry logs = 3; 
+}
+
 message AE_Request{
     int64 term = 1;
     int32 leader_id = 2;

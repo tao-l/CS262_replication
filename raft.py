@@ -37,7 +37,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                            RAFT server puts to this queue log entries that have been commited.
                            High-layer server will pick entires from this queue to execute. 
     """
-    def __init__(self, replicas, my_id, apply_queue):
+    def __init__(self, replicas, my_id, apply_queue, need_persistent=True):
         super().__init__()
 
         self.lock = threading.Lock()
@@ -45,7 +45,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
 
         ## Persistent states: 
         self.current_term = 0
-        self.voted_for = None
+        self.voted_for = -1
         dummy_command = rpc_service_pb2.ChatRequest()
         self.logs = [rpc_service_pb2.LogEntry(term=0, index=0, command=dummy_command)]
         # (index of the first "real" log entry is 1)
@@ -77,6 +77,64 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         self.heard_heartbeat = False
         self.grant_vote = False
         self.received_majority_vote = threading.Event()
+
+        ## Deal with persistency:
+        #  record whether we need persistency or not 
+        self.need_persistent = need_persistent
+        #  the file where the persistent states are saved
+        self.filename = f"record{self.my_id}"
+        if self.need_persistent:
+            with self.lock:
+                self.retrieve()
+    
+
+    """ This function saves the persistent states of the RAFT server
+        to disk file [self.filename], if need_persistent = True
+        *** Lock must be acquired before calling this function ***
+    """
+    def save(self): 
+        assert self.lock.locked()
+        if not self.need_persistent:
+            return
+        # [persistent] is a gRPC object used to record all the states
+        # that need to be saved
+        persistent = rpc_service_pb2.Persistent(
+                                        current_term = self.current_term, 
+                                        voted_for = self.voted_for, 
+                                        logs = self.logs
+                                    )
+        try: 
+            with open(self.filename, "wb") as f:
+                # use gRPC object's own serializing function
+                # to convert this object into a binary string to write to file f
+                f.write(persistent.SerializeToString())
+        except:
+            print("   save() fails\n")
+    
+
+    """ This function retrieve the persistent states from disk
+        *** Lock must be acquired before calling this function ***
+    """
+    def retrieve(self):
+        assert self.lock.locked()
+        if not self.need_persistent:
+            return
+        # [persistent] is a gRPC object used to record all the states
+        # that need to be retrived
+        persistent = rpc_service_pb2.Persistent()
+        try: 
+            with open(self.filename, "rb") as f:
+                # use gRPC object's own parsing function to parse from
+                # the binary string read from file f
+                persistent.ParseFromString(f.read())
+        except:
+            print("   retrieve() fails.\n")
+            return
+        # copy the states from [persistent]
+        self.current_term = persistent.current_term
+        self.voted_for = persistent.voted_for
+        self.logs = [x for x in persistent.logs]
+        print(f"  Retrieved!  current_term = {self.current_term}, voted_for = {self.voted_for}, log_len = {len(self.logs)}")
     
 
     """ Get the index of the last entry in the log """
@@ -89,16 +147,17 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
     
 
     """ When receiving a new client request, the upper-layer server calls
-        this function to try to add the request (command) to RAFT's log. 
-        RAFT varifies whether this server is the current Leader,
-        and if yes, replicates the command to other RAFT servers. 
+        this function to try to add the request/command to RAFT's log. 
+        RAFT verifies whether this server is the current Leader:
+          - if yes, adds the request and replicates it to other RAFT servers. 
+          - otherwise, does not add the request
         - Input: 
             command   :  rpc_service_pb2.ChatRequest object
         - Return: (index, term, is_leader):
             index     :  index of the command in the log if the command is committed
             term      :  current term
             is_leader :  whether this server is the current Leader.
-                         If no, this command is not added to the log. 
+                         If no, the command is not added to the log. 
     """
     def new_entry(self, command):
         logging.info(f"  RAFT [{self.my_id}] - new entry: " + command.message)   
@@ -114,13 +173,21 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                                                  command=command)
             self.logs.append( log_entry )
             logging.info(f"  RAFT [{self.my_id}] adds entry {term, index} to log")
+
+            self.save()
             return (index, term, True)
     
 
-    """ Append_entries RPC.  See RAFT paper for details """
+    """ Append_entries RPC.  See RAFT paper for details
+        - Input:
+            request  : pb2.AE_Request object, the request from the RAFT client that calls this RPC
+        - Return:
+            response : pb2.AE_Response object, RPC response to the client. 
+    """
     def rpc_append_entries(self, request, context):
         logging.debug(f"  RAFT [{self.my_id}] - AE - from Leader {request.leader_id},    my state={self.state}")
-        with self.lock:
+        self.lock.acquire()
+        try:
             response = rpc_service_pb2.AE_Response()
             
             # Step 1: Reply False if term < current_term
@@ -163,7 +230,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             self.logs = self.logs[:i]   # keep log[0, ..., i-1]. Delete i and after
             
             # Step 4: Append any new entries not already in the log
-            self.logs += request.entries[j:]
+            self.logs.extend( request.entries[j:] )
 
             # Step 5: If leader_commit > commit_index,
             #         set commit_index = min(leader_commit, index of last new entry)
@@ -178,11 +245,15 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
 
             response.success = True
             return response
+        
+        finally:
+            self.save()     # current_term and logs might chagne, so we need to save
+            self.lock.release()
     
 
     """ Send append_entries RPC to a RAFT server,
         wait for response, and handle response
-        - Input: id         : id of the target RAFT server, 
+        - Input: id      : id of the target RAFT server, 
                  request : append_entries request to send
     """
     def send_append_entries(self, id, request):
@@ -213,7 +284,6 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             else:
                 # Not success: decrement next_index[id] (and retry in the next broadcast)
                 self.next_index[id] -= 1
-                # threading.Thread(target = self.send_append_entries, args=(id, )).start()
                 """  is this safe?  What if multiple threads call send_append_entries(), and then 
                      all decrement self.next_index[id] ?? 
                 """
@@ -257,8 +327,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                 request.prev_log_term = self.logs[request.prev_log_index].term
                 request.leader_commit = self.commit_index
                 entries = self.logs[self.next_index[i] : ]
-                request.entries.extend(entries) # copy the entries (python list) to a pb2 object
-
+                request.entries.extend( entries )  # use extend to deep copy entries to request.entries
                 threading.Thread(target = self.send_append_entries, args=(i, request)).start()
     
 
@@ -274,10 +343,14 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         return last_log_term > my_last_term
 
 
-    """ request_vote RPC handler """
+    """ request_vote RPC handler.
+        See RAFT paper for details.
+        - Input: request : pb2.RV_Reuqest object
+    """
     def rpc_request_vote(self, request, context):
         logging.debug(f"  RAFT [{self.my_id}] - RV - receives from [{request.candidate_id}] with term {request.term}")
-        with self.lock:
+        self.lock.acquire()
+        try:
             response = rpc_service_pb2.RV_Response()
 
             if request.term < self.current_term:
@@ -294,7 +367,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             # RAFT paper: if voted_for is null or candidate_id, 
             #             and candidate's log is at least as-up-todate as mine, grant vote
             logging.debug(f"       voted_for = {self.voted_for}")
-            if self.voted_for == None  or  self.voted_for == request.candidate_id:
+            if self.voted_for == -1  or  self.voted_for == request.candidate_id:
                 if self.is_up_to_date(request.last_log_index, request.last_log_term):
                     response.vote_granted = True
                     self.voted_for = request.candidate_id
@@ -302,6 +375,10 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                     logging.debug(f"           grant vote to [{request.candidate_id}]")
 
             return response
+        
+        finally:
+            self.save()   # current_term and voted_for might change, need to save
+            self.lock.release()
     
     
     """ Send request_vote RPC to a RAFT server,
@@ -370,6 +447,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                  + f"last_applied=[{self.last_applied}], commit_index=[{self.commit_index}], "
                  + f"log length = [{self.get_last_index()}], term=[{self.current_term}]")
 
+
     """ Convert the current RAFT server to Follower
         - Input: the new term number
         *** Lock must be acquired before calling this function ***
@@ -378,9 +456,10 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         assert self.lock.locked
         self.state = Follower
         self.current_term = term
-        self.voted_for = None
+        self.voted_for = -1
         logging.info(self.DEBUG_information())
         logging.info(f"  RAFT [{self.my_id, self.state}] - convert to Follower")
+        self.save()   ## Persistent states chagnes. Need to save. 
         
 
     """ Convert the current RAFT server to Candidate
@@ -403,7 +482,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             
             self.broadcast_request_vote()
 
-            
+            self.save()
     
     
     """ (Try to) convert the current RAFT server to Leader
@@ -428,7 +507,6 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             logging.info(f"  RAFT [{self.my_id, self.state}] - convert to Leader")
 
 
-
     """ Reset events. 
         *** Lock must be acquired before calling this function ***
     """
@@ -443,15 +521,14 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
     def get_random_election_timeout_second(self):
         return random.randint(config.election_timeout_lower_bound,
                               config.election_timeout_upper_bound) / 1000
+    
 
     """ Main loop of RAFT server """
     def main_loop(self):
         print(f"  RAFT [{self.my_id}] main loop starts.")
         
         while True:
-            with self.lock:
-                state = self.state
-            # print(state)
+            state = self.state
             
             if state == Leader:
                 sleep(config.leader_broadcast_interval / 1000)
@@ -477,7 +554,8 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                     self.convert_to_leader()
                 else:
                     # Didn't receive enough votes, convert to candidate again. 
-                    # If the state already became Follower, convert_to_candidate will directly return 
+                    # If self.state already become Follower (which is different from state),
+                    # then convert_to_candidate will directly return 
                     self.convert_to_candidate(state)
     
 

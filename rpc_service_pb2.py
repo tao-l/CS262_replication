@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11rpc_service.proto\x12\x0brpc_service\"t\n\x0b\x43hatRequest\x12\n\n\x02op\x18\x01 \x01(\x05\x12\x0f\n\x07param_1\x18\x02 \x01(\x05\x12\x10\n\x08username\x18\x03 \x01(\t\x12\x13\n\x0btarget_name\x18\x04 \x01(\t\x12\x0f\n\x07message\x18\x05 \x01(\t\x12\x10\n\x08wildcard\x18\x06 \x01(\t\"O\n\x0c\x43hatResponse\x12\n\n\x02op\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\x05\x12\x11\n\tusernames\x18\x03 \x03(\t\x12\x10\n\x08messages\x18\x04 \x03(\t\"R\n\x08LogEntry\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\r\n\x05index\x18\x02 \x01(\x03\x12)\n\x07\x63ommand\x18\x03 \x01(\x0b\x32\x18.rpc_service.ChatRequest\"\x9b\x01\n\nAE_Request\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x11\n\tleader_id\x18\x02 \x01(\x05\x12\x16\n\x0eprev_log_index\x18\x03 \x01(\x03\x12\x15\n\rprev_log_term\x18\x04 \x01(\x03\x12&\n\x07\x65ntries\x18\x05 \x03(\x0b\x32\x15.rpc_service.LogEntry\x12\x15\n\rleader_commit\x18\x06 \x01(\x03\",\n\x0b\x41\x45_Response\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x0f\n\x07success\x18\x02 \x01(\x08\"_\n\nRV_Request\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x14\n\x0c\x63\x61ndidate_id\x18\x02 \x01(\x05\x12\x16\n\x0elast_log_index\x18\x03 \x01(\x03\x12\x15\n\rlast_log_term\x18\x04 \x01(\x03\"1\n\x0bRV_Response\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x14\n\x0cvote_granted\x18\x02 \x01(\x08\x32V\n\x0b\x43hatService\x12G\n\x0erpc_chat_serve\x12\x18.rpc_service.ChatRequest\x1a\x19.rpc_service.ChatResponse\"\x00\x32\xa1\x01\n\x0bRaftService\x12I\n\x12rpc_append_entries\x12\x17.rpc_service.AE_Request\x1a\x18.rpc_service.AE_Response\"\x00\x12G\n\x10rpc_request_vote\x12\x17.rpc_service.RV_Request\x1a\x18.rpc_service.RV_Response\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11rpc_service.proto\x12\x0brpc_service\"t\n\x0b\x43hatRequest\x12\n\n\x02op\x18\x01 \x01(\x05\x12\x0f\n\x07param_1\x18\x02 \x01(\x05\x12\x10\n\x08username\x18\x03 \x01(\t\x12\x13\n\x0btarget_name\x18\x04 \x01(\t\x12\x0f\n\x07message\x18\x05 \x01(\t\x12\x10\n\x08wildcard\x18\x06 \x01(\t\"O\n\x0c\x43hatResponse\x12\n\n\x02op\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\x05\x12\x11\n\tusernames\x18\x03 \x03(\t\x12\x10\n\x08messages\x18\x04 \x03(\t\"R\n\x08LogEntry\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\r\n\x05index\x18\x02 \x01(\x03\x12)\n\x07\x63ommand\x18\x03 \x01(\x0b\x32\x18.rpc_service.ChatRequest\"Z\n\nPersistent\x12\x14\n\x0c\x63urrent_term\x18\x01 \x01(\x03\x12\x11\n\tvoted_for\x18\x02 \x01(\x05\x12#\n\x04logs\x18\x03 \x03(\x0b\x32\x15.rpc_service.LogEntry\"\x9b\x01\n\nAE_Request\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x11\n\tleader_id\x18\x02 \x01(\x05\x12\x16\n\x0eprev_log_index\x18\x03 \x01(\x03\x12\x15\n\rprev_log_term\x18\x04 \x01(\x03\x12&\n\x07\x65ntries\x18\x05 \x03(\x0b\x32\x15.rpc_service.LogEntry\x12\x15\n\rleader_commit\x18\x06 \x01(\x03\",\n\x0b\x41\x45_Response\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x0f\n\x07success\x18\x02 \x01(\x08\"_\n\nRV_Request\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x14\n\x0c\x63\x61ndidate_id\x18\x02 \x01(\x05\x12\x16\n\x0elast_log_index\x18\x03 \x01(\x03\x12\x15\n\rlast_log_term\x18\x04 \x01(\x03\"1\n\x0bRV_Response\x12\x0c\n\x04term\x18\x01 \x01(\x03\x12\x14\n\x0cvote_granted\x18\x02 \x01(\x08\x32V\n\x0b\x43hatService\x12G\n\x0erpc_chat_serve\x12\x18.rpc_service.ChatRequest\x1a\x19.rpc_service.ChatResponse\"\x00\x32\xa1\x01\n\x0bRaftService\x12I\n\x12rpc_append_entries\x12\x17.rpc_service.AE_Request\x1a\x18.rpc_service.AE_Response\"\x00\x12G\n\x10rpc_request_vote\x12\x17.rpc_service.RV_Request\x1a\x18.rpc_service.RV_Response\"\x00\x62\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'rpc_service_pb2', globals())
@@ -26,16 +26,18 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _CHATRESPONSE._serialized_end=231
   _LOGENTRY._serialized_start=233
   _LOGENTRY._serialized_end=315
-  _AE_REQUEST._serialized_start=318
-  _AE_REQUEST._serialized_end=473
-  _AE_RESPONSE._serialized_start=475
-  _AE_RESPONSE._serialized_end=519
-  _RV_REQUEST._serialized_start=521
-  _RV_REQUEST._serialized_end=616
-  _RV_RESPONSE._serialized_start=618
-  _RV_RESPONSE._serialized_end=667
-  _CHATSERVICE._serialized_start=669
-  _CHATSERVICE._serialized_end=755
-  _RAFTSERVICE._serialized_start=758
-  _RAFTSERVICE._serialized_end=919
+  _PERSISTENT._serialized_start=317
+  _PERSISTENT._serialized_end=407
+  _AE_REQUEST._serialized_start=410
+  _AE_REQUEST._serialized_end=565
+  _AE_RESPONSE._serialized_start=567
+  _AE_RESPONSE._serialized_end=611
+  _RV_REQUEST._serialized_start=613
+  _RV_REQUEST._serialized_end=708
+  _RV_RESPONSE._serialized_start=710
+  _RV_RESPONSE._serialized_end=759
+  _CHATSERVICE._serialized_start=761
+  _CHATSERVICE._serialized_end=847
+  _RAFTSERVICE._serialized_start=850
+  _RAFTSERVICE._serialized_end=1011
 # @@protoc_insertion_point(module_scope)

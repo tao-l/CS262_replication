@@ -67,6 +67,16 @@ class LogEntry(_message.Message):
     term: int
     def __init__(self, term: _Optional[int] = ..., index: _Optional[int] = ..., command: _Optional[_Union[ChatRequest, _Mapping]] = ...) -> None: ...
 
+class Persistent(_message.Message):
+    __slots__ = ["current_term", "logs", "voted_for"]
+    CURRENT_TERM_FIELD_NUMBER: _ClassVar[int]
+    LOGS_FIELD_NUMBER: _ClassVar[int]
+    VOTED_FOR_FIELD_NUMBER: _ClassVar[int]
+    current_term: int
+    logs: _containers.RepeatedCompositeFieldContainer[LogEntry]
+    voted_for: int
+    def __init__(self, current_term: _Optional[int] = ..., voted_for: _Optional[int] = ..., logs: _Optional[_Iterable[_Union[LogEntry, _Mapping]]] = ...) -> None: ...
+
 class RV_Request(_message.Message):
     __slots__ = ["candidate_id", "last_log_index", "last_log_term", "term"]
     CANDIDATE_ID_FIELD_NUMBER: _ClassVar[int]
