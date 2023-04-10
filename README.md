@@ -38,8 +38,7 @@ The number of servers and their addresses and ports are in `config.py`.
 
 To run the servers locally, change the ip addresses to `127.0.0.1`.  To change the number of servers, just change the `replicas` list. 
 
-### Persistence
-The servers can be run in two modes: persistent or not.  To specify this, change the `need_persistent` in `config.py` to True or False.
+__Persistence:__ The servers can be run in two modes: persistent or not.  To specify this, change the `need_persistent` in `config.py` to True or False.
 
 
 __To run a client__, run:
