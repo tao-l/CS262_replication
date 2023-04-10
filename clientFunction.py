@@ -101,7 +101,7 @@ def get_all_accounts(stubs):
         print_red(error)
         return
 
-    return response.usernames
+    return None if response is None else response.usernames
 
 def login_account(stubs):
     """
@@ -114,7 +114,7 @@ def login_account(stubs):
     # first acquire all possible accounts
     current_account_names = get_all_accounts(stubs)
 
-    if len(current_account_names) > 0:
+    if current_account_names is not None and len(current_account_names) > 0:
         actions = current_account_names
         message = "\nChoose a user account to log in.\n\n"
         name = curses.wrapper(menu, current_account_names, message)
@@ -210,7 +210,7 @@ def send_message(stubs):
     # first acquire all possible accounts
     current_account_names = get_all_accounts(stubs)
 
-    if len(current_account_names) > 0:
+    if current_account_names is not None and len(current_account_names) > 0:
         actions = current_account_names
         message = "\nChoose a user account to send a message.\n\n"
         target_name = curses.wrapper(menu, current_account_names, message)
