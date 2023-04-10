@@ -86,7 +86,7 @@ Because we implemented the RAFT algorithm, our server can survive all the failur
 
 1. At most 2 out of 5 servers crushes.  
 2. Network delays and failures. 
-3. Crushed server can be restarted.  Even after 3 or more servers crushes, as long as some servers are restarted so that 3 servers are running, our system can return to work. 
+3. Crushed server can be restarted.  Even after 3 or more servers crush, as long as some servers are restarted so that 3 servers are running, our system can return to work. 
 
 ## Design Decisions and Code Structure
 
