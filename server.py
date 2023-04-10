@@ -7,8 +7,6 @@ import grpc
 import rpc_service_pb2_grpc
 import rpc_service_pb2
 
-import socket
-import sys
 import threading
 import queue
 
@@ -50,9 +48,9 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
     """ The RPC service provided to the client.
         Input:
-            a request (a pb2.ChatRequest object)
-        Yield:
-            a stream of responses (each a pb2.ChatResponse ojbect)
+            request  : a pb2.ChatRequest object
+        Return:
+            response : a pb2.ChatResponse ojbect
     """
     def rpc_chat_serve(self, request, context):
         logging.info(f" Chat: receives: op={request.op}, username = {request.username}, message = " + request.message)
@@ -79,7 +77,7 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
         logging.info(f" Chat: waiting for event, index = {index}")
         self.results[index][0].wait()         # wait for the event
-        response = self.results[index][1]     # get the responses
+        response = self.results[index][1]     # get the response
         logging.info(f" Chat: got event, index = {index}")
         return response
     
@@ -94,7 +92,7 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
             with self.lock:
                 logging.info(f"     Apply request index = {index},  op = {request.op}, username = {request.username}, message = {request.message}")
-                # apply request, and (if needed) record results and notify the waiting thread. 
+                # apply the request, and (if needed) record the result and notify the waiting thread. 
                 if index not in self.results:
                     # This case means that the request is not initiated by the current server; 
                     # it is replicated from other servers' logs instead.
@@ -108,17 +106,6 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
                     self.results[index][1] = self.state_machine.apply(request)
                     # set the event to notify the waiting thread
                     self.results[index][0].set()
-    
-
-    # """ Apply request:
-    #     Return: resopnse to the client 
-    #     ****  must acquire lock before calling  ****
-    # """
-    # def apply(self, request):
-    #     assert self.lock.locked()
-    #     res = rpc_service_pb2.ChatResponse()
-    #     res.messages.append( request.message + " (is applied)" )
-    #     return res
 
 
 if __name__ == "__main__":
