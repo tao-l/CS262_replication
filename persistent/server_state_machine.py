@@ -18,7 +18,7 @@ class ChatStateMachine:
         self.lock = threading.Lock()
     
     
-    # Then, we define the functionality of different commands: 
+    # We define the functionality of different commands: 
     def create_account(self, request):
         """ Create account with username [request.username].
             Respond error message if the account cannot be created.

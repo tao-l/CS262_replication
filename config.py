@@ -17,9 +17,9 @@ replicas = ( ServerInfo(0, "127.0.0.1", "20000", "30000"),
 n_replicas = len(replicas)
 # assert n_replicas > 2*F
 
-leader_broadcast_interval = 100  # millisecond
-election_timeout_lower_bound = 300
-election_timeout_upper_bound = 600
+leader_broadcast_interval = 30  # millisecond
+election_timeout_lower_bound = 200
+election_timeout_upper_bound = 400
 
 
 
