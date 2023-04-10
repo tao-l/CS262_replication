@@ -11,7 +11,7 @@ $ python3 -m pip install grpcio-tools
 
 First, download or clone our github repository.  To clone, cd into a folder where you want to put this repository and run: 
 ```console
-$ https://github.com/tao-l/CS262_replication.git
+$ git clone https://github.com/tao-l/CS262_replication.git
 ```
 Then, cd into the repository: 
 ```console
