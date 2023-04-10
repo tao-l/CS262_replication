@@ -1,5 +1,47 @@
 # CS262_replication
 
+# Running the Programs
+Make sure you have installed the gRPC python package first.  If you haven't, run:
+```console
+$ python3 -m pip install --upgrade pip
+$ python3 -m pip install grpcio
+$ python3 -m pip install grpcio-tools
+```
+(If you encounter problems when installing gRPC, check [their website](https://grpc.io/docs/languages/python/quickstart/).)
+
+First, download or clone our github repository.  To clone, cd into a folder where you want to put this repository and run: 
+```console
+$ git clone https://github.com/tao-l/CS262_chatroom.git
+```
+Then, cd into the repository: 
+```console
+$ cd CS262_chatroom
+```
+
+__To run the servers__, open multiple terminals (and cd into the above directory), in each terminal, run: 
+```console
+$ python3 server.py id
+```
+where `id` is a number in `[0, 1, 2, 3, 4]` indicating the id of the server.  (To tolerate 2 faults, we need 5 servers).  You will see something like the following:
+```console
+  Retrieved!  current_term = 131, voted_for = 0, log_len = 72
+  RAFT [1] RPC server starts at 127.0.0.1:30010
+  RAFT [1] main loop starts.
+ ====== Chat server [1] starts at 127.0.0.1:20010 =======
+INFO:root:  RAFT [1] - convert to Candidate from state 0
+INFO:root:    RAFT [1], state = [0], last_applied=[0], commit_index=[0], log length = [71], term=[131]
+INFO:root:    RAFT [1], state = [0], last_applied=[0], commit_index=[0], log length = [71], term=[138]
+```
+where [1] is the id of the server. 
+
+The number of servers and their addresses and ports are in `config.py`.  To run the servers locally, change the ip address to `127.0.0.1`.  To change the number of servers, just change the `replicas` list. 
+
+
+__To run a client__, run:
+```console
+$ python3 server.py id
+```
+
 
 # Design Document
 Our approach to replicated chat server is the __replicated state machine__ approach.
@@ -36,8 +78,8 @@ The state machine `state_machine` implements the main logic of the chat server. 
 #### Why this design? 
 Our design completely separates the logic of the concensus/replication algorithm (RAFT) and the logic of the state machine (the specific chat services).
 RAFT does not know anything about how the state machine is implemented and the state machine does not need to worry about replication. 
-This makes the design more modular and makes all the RAFT code, the state_machine code, and the server code useable in other problems.
-For example, if we want to implement a replicated system for another service, we only need to replace the state_machine code without changing server code and RAFT code. 
+This makes the design more modular and makes all the RAFT code, the state machine code, and the server code useable in other problems.
+For example, if we want to implement a replicated system for another service, we only need to replace the state machine code without changing server code and RAFT code. 
 
 ### Client
 The client does not know which server is the leader, so it just calls each server one by one until receiving a valid reply (a non-leader server relies an error message).
