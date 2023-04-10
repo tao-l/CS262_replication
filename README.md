@@ -23,5 +23,17 @@ We mention these details only to illustrate the difficulty of the problem.  One 
 
 
 ### Code structure
+Each of our server (an `ChatServiceServicer` object in `server.py`) contains two components:
 
-The `server.py`
+* a state machine `state_machine` (which is a `ChatStateMachine` object defined in `state_machine.py`), and
+* a RAFT instance `rf` (which is a `RaftServiceServicer` object defined in `raft.py`).
+
+The server offers RPC services to the client.  When receiving a RPC request from the client, the server asks the RAFT instance (by calling `rf.new_entry(request)`) to add this request to its log.  The RAFT instance will communicate with the RAFT instances on other servers to replicate this request.  The replication is not guaranteed to succeed (e.g., because the current server is not the leader).  When the request has been replicated on a majority of servers, this request is considered committed, and the RAFT instance will notify the server to apply this request (by putting the request to the server's `apply_queue`).   Then server then applies this request by calling the state machine (calling `state_machine.apply(request)` function), and replies to the client (if this request is replicated from other servers, do not reply to client).  The servers never directly communicate with each other -- they communicate over the RAFT instances. 
+
+The state machine `state_machine` implements the main logic of the chat server.  A request can be one of the 6 operations: `{create_account, check_account, list_account, delete_account, send_message, fetch_messages}`, indicated by `request.op`.  Other parameters of the request are stored in, e.g., `request.username` and `request.message` (see `rpc_service.proto` for details).  The `state_machine.apply(request)` function executes this request and returns the response.  The server will then forward this response to the client.
+
+#### Why this design? 
+Our design completely separates the logic concensus/replication algorithm (RAFT) and the logic of the state machine (the specific chat services).
+RAFT does not know anything about how the state machine is implemented and the state machine does not need to worry about replication. 
+This makes both the RAFT code and the state_machine code useable in other problems. 
+
