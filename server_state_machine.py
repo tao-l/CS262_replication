@@ -18,7 +18,7 @@ class ChatStateMachine:
         self.lock = threading.Lock()
     
     
-    # Then, we define the functionality of different commands: 
+    # We define the functionality of different commands: 
     def create_account(self, request):
         """ Create account with username [request.username].
             Respond error message if the account cannot be created.
@@ -163,14 +163,17 @@ class ChatStateMachine:
             Server tries to return all the messages sent to the user starting from the [msg_id]-th one:   
             - If the client's username does not exist, return error. 
             - If [msg_id] < 1, return error. 
-            - If [msg_id] is larger than the number of messages the client received, return NO_ELEMENT
+            - If [msg_id] > the number of messages the client received, return NO_ELEMENT
             - Otherwise, return a response with an array of of responses, where each response includes 
-                * the messages in [response.messages]
-                * the users who sent those messages in [response.usernames]
+                
             Input:
-                request: service_pb2.FetchRequest
+                 request: pb2.ChatRequest
             Return:
-                chat messages: a stream of service_pb2.ChatMessage
+                 response: pb2.ChatResponse
+                 * for error, response.messages[0] contains error message. 
+                 * if success, response.status = SUCCESS, 
+                   the messages are in [response.messages]
+                   the users who sent those messages are in [response.usernames]
         """
         assert self.lock.locked()
 
