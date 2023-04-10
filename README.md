@@ -15,14 +15,15 @@ This is only a high-level description, however.  There are many details in the R
 
 * When the leader crashes and a new leader needs to be elected, some servers cannot be elected because they may have not received all the commited requests due to network delay.  We must choose a server with the "latest" log. 
 
-* When a leader is disconnected with other servers, it may add several commands to its log and cannot commit to them.  Then, a new leader may be elected among other servers.  Then, the previous leader has to become a follower and removes the commited commands in its log.
+* When a leader is disconnected with other servers, it may add several commands to its log and cannot commit to them.  Then, a new leader may be elected among other servers.  Then, the previous leader has to become a follower and removes the committed commands in its log.
 
 * ...
 
-We mention these details only to illustrate the difficulty of the problem.  One should read the [original paper](https://raft.github.io/raft.pdf) (or other resources) for the full details of the algorithm. 
+We mention the above examples only to illustrate the difficulties of the problem and importance of details.  One should read the [original paper](https://raft.github.io/raft.pdf) (or other resources) for the full description of the RAFT algorithm. 
 
 
-### Code structure
+### Design Decision and Code Structure
+#### Server
 Each of our server (an `ChatServiceServicer` object in `server.py`) contains two components:
 
 * a state machine `state_machine` (which is a `ChatStateMachine` object defined in `state_machine.py`), and
@@ -32,10 +33,13 @@ The server offers RPC services to the client.  When receiving a RPC request from
 
 The state machine `state_machine` implements the main logic of the chat server.  A request can be one of the 6 operations: `{create_account, check_account, list_account, delete_account, send_message, fetch_messages}`, indicated by `request.op`.  Other parameters of the request are stored in, e.g., `request.username` and `request.message` (see `rpc_service.proto` for details).  The `state_machine.apply(request)` function executes this request and returns the response.  The server will then forward this response to the client.
 
-#### Why this design? 
+##### Why this design? 
 Our design completely separates the logic of the concensus/replication algorithm (RAFT) and the logic of the state machine (the specific chat services).
 RAFT does not know anything about how the state machine is implemented and the state machine does not need to worry about replication. 
 This makes the design more modular and makes all the RAFT code, the state_machine code, and the server code useable in other problems.
 For example, if we want to implement a replicated system for another service, we only need to replace the state_machine code without changing server code and RAFT code. 
 
+#### Client
+The client does not know which server is the leader, so it just calls each server one by one until receiving a valid reply (a non-leader server relies an error message).
+Occasionally, the service will be unavailable due to, e.g., leader election.  If the client waits for a reply for a long time, it stops and prints an error message.  Other details are not very important. 
 
