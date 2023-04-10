@@ -81,6 +81,13 @@ RAFT is a leader-follower algorithm.  The full algorithm is complicated.  We onl
 
 We omit many details here.  One can read the [original paper](https://raft.github.io/raft.pdf) or other resources for details.
 
+## Failure Modes We Support
+Because we implemented the RAFT algorithm, our server can survive all the failures that RAFT can survice, including: 
+
+1. At most 2 out of 5 server replicas crushes.  
+2. Network delay and failures. 
+3. Crushed server can restart.  Even after 3 or more server crushes, as long as some servers are restarted so that 3 servers are running, our system works. 
+
 ## Design Decisions and Code Structure
 
 ### Server
