@@ -19,7 +19,9 @@ This is only a high-level description, however.  There are many details in the R
 
 * ...
 
-We mention these details only to illustrate the difficulty of the problem.  One should read the original paper (or other resources) for the full details of the algorithm. 
+We mention these details only to illustrate the difficulty of the problem.  One should read the [original paper](https://raft.github.io/raft.pdf) (or other resources) for the full details of the algorithm. 
 
 
 ### Code structure
+
+The `server.py`
