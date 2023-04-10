@@ -59,17 +59,17 @@ This algorithm can tolerate server crashes/failstops, network faults and delays,
 RAFT is a leader-follower type algorithm.  The full algorithm is complicated.  We only give a high-level overview here. 
 Roughly speaking, the algorithm works as follows: 
 
-1. It works term by term.  At the beginninng of each term, a server is elected as a Leader is elected.  Other servers are followers.
+1. It works term by term.  At the beginninng of each term, a server is elected as a Leader.  Other servers are Followers.
 
-2. Only the Leader can take requests from the client.  After taking a request, the Leader adds this request to its own log.
+2. Only the Leader can take requests from the client.  After taking a request, the Leader adds this request to its own log.  This request is not commited and cannot be executed immediately.
 
-3. The Leader periodically broadcasts its log to the followers, asking them to replicate this log.
+3. The Leader periodically broadcasts its log to the Followers, asking them to replicate this log.
 
-4. When the Leader learns that a request on the log has been replicated on a majority of all servers, this request is considered _commited_ and the Leader executes this request (namely, applies this command to the state machhine) and responds to the client.
+4. When the Leader learns that a request on the log has been replicated on a majority of all servers, this request is considered commited and the Leader executes this request (namely, applies this command to the state machhine) and responds to the client.
 
-5. Followers listen to the Leader's broadcasts, and append new entries to their own logs if the Leader's log has new entries.  The Leader also tells which log entries have been commited, and the Followers execute those entries.
+5. Followers listen to the Leader's broadcasts, and append new entries to their own logs if the Leader's log has new entries.  The Leader also tells the Followers which log entries have been commited, and the Followers can execute those entries.
 
-6. When a Follower cannot hear the Leader for some time, the Leader is considered faulty and the Follower starts a new term, becomes a Candidate, runs an election in order to be the new Leader.  To do this, the Candidate requests votes from every other servers.  If it receives a majority of votes, then it becomes Leader.  When deciding whether to vote for a Candidate, each server needs to compare its log with the Candidate's log -- only the server with the "latest" log can win the election.  This ensures that the Leader always has the "latest" log.  If no Leader can be elected due to split votes, the Followers start a new term and run election again; eventually, some Leader will be elected.  
+6. If a Follower cannot hear the Leader for some period, the Leader is considered faulty and the Follower starts a new term and runs an election in order to be the new Leader.  To do this, this candidate server requests votes from every other server.  If it receives a majority of votes, then it becomes Leader.  When deciding whether to vote for a candidate, a server has to compare its log with the candidate's log and grants vote only if the candidate's log is newer than its log.  This ensures that the Leader always has the "latest" log.  If no Leader can be elected due to split votes, a Follower starts a new election again after some random timeout; eventually, some Leader will be elected.  
 
 We omit many details here.  One can read the [original paper](https://raft.github.io/raft.pdf) or other resources for details.
 
