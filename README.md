@@ -84,8 +84,8 @@ We omit many details here.  One can read the [original paper](https://raft.githu
 ## Failure Modes We Support
 Because we implemented the RAFT algorithm, our server can survive all the failures that RAFT can survice, including: 
 
-1. At most 2 out of 5 servers crushes.  
-2. Network delays and failures. 
+1. At most 2 out of 5 servers crush.  
+2. At most 2 out of 5 servers cannot connect to other servers due to network failures.
 3. Crushed server can be restarted.  Even after 3 or more servers crush, as long as some servers are restarted so that 3 servers are running, our system can return to work. 
 
 ## Design Decisions and Code Structure
