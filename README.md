@@ -15,7 +15,7 @@ $ git clone https://github.com/tao-l/CS262_replication.git
 ```
 Then, cd into the repository: 
 ```console
-$ cd CS262_chatroom
+$ cd CS262_replication
 ```
 
 __To run the servers__, open multiple terminals (and cd into the above directory), in each terminal, run: 
