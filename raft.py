@@ -1,7 +1,7 @@
 """ The RAFT algorithm: used to maintain a consistent log among the replicas
 """
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 from concurrent import futures
 import grpc
@@ -119,12 +119,12 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
 
     """ Append_entries RPC.  See RAFT paper for details """
     def rpc_append_entries(self, request, context):
-        logging.info(f"  RAFT [{self.my_id}] - AE - from Leader {request.leader_id},    my state={self.state}")
+        logging.debug(f"  RAFT [{self.my_id}] - AE - from Leader {request.leader_id},    my state={self.state}")
         with self.lock:
             response = rpc_service_pb2.AE_Response()
             
             # Step 1: Reply False if term < current_term
-            logging.info(f"     request.term = {request.term}, my current term = {self.current_term}.")
+            logging.debug(f"     request.term = {request.term}, my current term = {self.current_term}.")
             if request.term < self.current_term:
                 response.term = self.current_term
                 response.success = False
@@ -139,9 +139,9 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             response.term = self.current_term
             response.success = False
 
-            print(f"        logs before AE: " + DEBUG.logs_to_string(self.logs))
-            print(f"        comming entries: " + DEBUG.logs_to_string(request.entries))
-            logging.info(f"         prev_log_index = {request.prev_log_index},  prev_log_term = {request.prev_log_term}")
+            # print(f"        logs before AE: " + DEBUG.logs_to_string(self.logs))
+            # print(f"        comming entries: " + DEBUG.logs_to_string(request.entries))
+            # logging.info(f"         prev_log_index = {request.prev_log_index},  prev_log_term = {request.prev_log_term}")
 
             # Step 2: Reply False if Follower's log doesn't contain an entry at prev_log_index
             #         whose term matches prev_log_term
@@ -171,10 +171,10 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                 last_index = self.get_last_index()
                 self.commit_index = min(request.leader_commit, last_index)
                 # upon comit_index changes, apply logs:
-                logging.info(f"      commit_index ={self.commit_index}" ) 
+                logging.debug(f"      commit_index = {self.commit_index}" ) 
                 threading.Thread(target=self.apply_logs, args=()).start()
             
-            logging.info(f"    logs after AE: " + DEBUG.logs_to_string(self.logs))
+            # logging.info(f"    logs after AE: " + DEBUG.logs_to_string(self.logs))
 
             response.success = True
             return response
@@ -191,7 +191,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         except grpc.RpcError:
             # RPC fails: does nothing and return
             return
-        logging.info(f"    Sent to {id}, term = {request.term}")
+        logging.debug(f"    Sent to {id}, term = {request.term}")
         
         with self.lock:
             if (self.state != Leader or request.term != self.current_term
@@ -206,7 +206,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             if response.success:
                 # If success: update next_index[id] and match_index[id]
                 new_match_index = request.prev_log_index + len(request.entries)
-                logging.info(f"       Success, match_index[{id}]: {self.match_index[id]} -> {new_match_index}")
+                logging.debug(f"       Success, match_index[{id}]: {self.match_index[id]} -> {new_match_index}")
                 if new_match_index > self.match_index[id]:
                     self.match_index[id] = new_match_index
                 self.next_index[id] = self.match_index[id] + 1
@@ -224,7 +224,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             #         and log[N].term == current_term, 
             #    then set commit_index = N"
             N = self.get_last_index()
-            while (N >= self.commit_index):
+            while (N > self.commit_index):
                 if self.logs[N].term == self.current_term:
                     count = 1
                     for i in range(self.n_replicas):
@@ -233,7 +233,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                     if count > self.n_replicas // 2:
                         self.commit_index = N
                         # upon comit_index changes, apply logs:
-                        logging.info(f"       commit_index = {N}")
+                        logging.debug(f"       commit_index = {N}")
                         threading.Thread(target=self.apply_logs, args=()).start()
                         break 
                 N -= 1
@@ -243,7 +243,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         *** Lock must be acquired before calling this function ***
     """
     def broadcast_append_entries(self):
-        logging.info(f"  RAFT [{self.my_id}] - broadcast AE:")
+        logging.debug(f"  RAFT [{self.my_id}] - broadcast AE:")
         assert self.lock.locked()
         if self.state != Leader:
             return
@@ -276,7 +276,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
 
     """ request_vote RPC handler """
     def rpc_request_vote(self, request, context):
-        logging.info(f"  RAFT [{self.my_id}] - RV - receives from [{request.candidate_id}] with term {request.term}")
+        logging.debug(f"  RAFT [{self.my_id}] - RV - receives from [{request.candidate_id}] with term {request.term}")
         with self.lock:
             response = rpc_service_pb2.RV_Response()
 
@@ -293,13 +293,13 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
 
             # RAFT paper: if voted_for is null or candidate_id, 
             #             and candidate's log is at least as-up-todate as mine, grant vote
-            logging.info(f"       voted_for = {self.voted_for}")
+            logging.debug(f"       voted_for = {self.voted_for}")
             if self.voted_for == None  or  self.voted_for == request.candidate_id:
                 if self.is_up_to_date(request.last_log_index, request.last_log_term):
                     response.vote_granted = True
                     self.voted_for = request.candidate_id
                     self.grant_vote = True
-                    logging.info(f"           grant vote to [{request.candidate_id}]")
+                    logging.debug(f"           grant vote to [{request.candidate_id}]")
 
             return response
     
@@ -310,16 +310,16 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                  request : RV_request
     """
     def send_request_vote(self, id, request):
-        logging.info(f"    RAFT [{self.my_id}] - sending RV from [{self.my_id}] to [{id}] with my term = {request.term}")
+        logging.debug(f"    RAFT [{self.my_id}] - sending RV from [{self.my_id}] to [{id}] with my term = {request.term}")
 
         try:
             response = self.replica_stubs[id].rpc_request_vote(request)
         except grpc.RpcError:
-            logging.info(f"       no response from {id}")
+            logging.debug(f"       no response from {id}")
             return
         
         with self.lock:
-            logging.info(f"      got response from {id}: vote_granted = {response.vote_granted},  term = {response.term}")
+            logging.debug(f"      got response from {id}: vote_granted = {response.vote_granted},  term = {response.term}")
             if (self.state != Candidate  or  request.term != self.current_term
                                          or  response.term < self.current_term):
                 return 
@@ -340,7 +340,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         *** Lock must be acquired before calling this function ***
     """
     def broadcast_request_vote(self):
-        logging.info(f"  RAFT [{self.my_id, self.state}] - broadcast request vote - current_term = {self.current_term}")
+        logging.debug(f"  RAFT [{self.my_id, self.state}] - broadcast request vote - current_term = {self.current_term}")
         assert self.lock.locked()
         if self.state != Candidate:
             return
@@ -360,32 +360,39 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
     def apply_logs(self):
         with self.lock:
             for i in range(self.last_applied+1, self.commit_index+1):
-                logging.debug(f"    RAFT [{self.my_id}] puts log entry [{i}] to apply_queue")
+                logging.info(f"    RAFT [{self.my_id}] puts log entry [{i}] to apply_queue,  commit_index={self.commit_index}")
                 self.apply_queue.put(self.logs[i])
                 self.last_applied = i
-       
+    
+
+    def DEBUG_information(self):
+        return (   f"    RAFT [{self.my_id}], state = [{self.state}], "
+                 + f"last_applied=[{self.last_applied}], commit_index=[{self.commit_index}], "
+                 + f"log length = [{self.get_last_index()}], term=[{self.current_term}]")
 
     """ Convert the current RAFT server to Follower
         - Input: the new term number
         *** Lock must be acquired before calling this function ***
     """
     def convert_to_follower(self, term):
-        logging.info(f"  RAFT [{self.my_id, self.state}] - convert to follower - old term: {self.current_term} - new term: {term}")
         assert self.lock.locked
         self.state = Follower
         self.current_term = term
         self.voted_for = None
-
+        logging.info(self.DEBUG_information())
+        logging.info(f"  RAFT [{self.my_id, self.state}] - convert to Follower")
+        
 
     """ Convert the current RAFT server to Candidate
     """
     def convert_to_candidate(self, from_state):
-        logging.info(f"  RAFT [{self.my_id}] - convert to candidate from state {from_state}")
+        logging.info(f"  RAFT [{self.my_id}] - convert to Candidate from state {from_state}")
+        logging.info(self.DEBUG_information())
         with self.lock:
             # state may change (from Candidate to Follower) before this function is called, 
             # so need to check this case
             if self.state != from_state:
-                logging.info(f"       fail, current state = {self.state}")
+                logging.info(f"       fail to convert because current state = {self.state}")
                 return 
             
             self.state = Candidate
@@ -395,18 +402,19 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             self.vote_count = 1
             
             self.broadcast_request_vote()
+
+            
     
     
     """ (Try to) convert the current RAFT server to Leader
     """
     def convert_to_leader(self):
-        logging.info(f"  RAFT [{self.my_id, self.state}] - try convert to leader")
         with self.lock:
             # state may change (to Follower) before this function is called, 
             # so need to check the state
             if self.state != Candidate:
                 return 
-            
+
             self.state = Leader
             self.reset_events()
 
@@ -415,6 +423,10 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             self.match_index = [0 for i in range(self.n_replicas)]
 
             self.broadcast_append_entries()
+
+            logging.info(self.DEBUG_information())
+            logging.info(f"  RAFT [{self.my_id, self.state}] - convert to Leader")
+
 
 
     """ Reset events. 
@@ -451,7 +463,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
 
             elif state == Follower:
                 sleep( self.get_random_election_timeout_second() )
-                logging.info(f"     heartbeat = {self.heard_heartbeat}")
+                logging.debug(f"     heartbeat = {self.heard_heartbeat}")
                 with self.lock:
                     to_convert_to_candidate =  (not self.heard_heartbeat) and (not self.grant_vote)
                     self.heard_heartbeat = False

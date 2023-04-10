@@ -1,6 +1,6 @@
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 from concurrent import futures
 import grpc
@@ -100,11 +100,11 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
                     # it is replicated from other servers' logs instead.
                     # So, we don't need to record the result and respond to client. 
                     # We just need to apply the request to the state machine
-                    logging.debug("       replicated")
+                    logging.info("       replicated")
                     self.state_machine.apply(request)
                 else:
                     # Otherwise, we need to record the results and notify the current server
-                    logging.debug("       need to respond to client")
+                    logging.info("       need to respond to client")
                     self.results[index][1] = self.state_machine.apply(request)
                     # set the event to notify the waiting thread
                     self.results[index][0].set()

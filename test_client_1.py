@@ -23,9 +23,10 @@ for i in range(n_replicas):
     stubs.append(s)
 
 def rpc_try_all(chat_request, stubs):
-    for s in stubs:
+    for i in range(len(stubs)):
         try:
-            response = s.rpc_chat_serve(chat_request)
+            print(f"Trying server [{i}]")
+            response = stubs[i].rpc_chat_serve(chat_request)
             # print(tmp)
             if response.status != config.SERVER_ERROR:
                 return (response, True)
