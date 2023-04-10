@@ -39,7 +39,7 @@ The number of servers and their addresses and ports are in `config.py`.  To run 
 
 __To run a client__, run:
 ```console
-$ python3 server.py id
+$ python3 client.py
 ```
 
 
