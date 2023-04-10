@@ -34,11 +34,12 @@ INFO:root:    RAFT [1], state = [0], last_applied=[0], commit_index=[0], log len
 ```
 where [1] is the id of the server. 
 
-The number of servers and their addresses and ports are in `config.py`.
+The number of servers and their addresses and ports are in `config.py`.  To change the number of servers, just change the `replicas` list. 
 
-To run the servers locally, change the ip addresses to `127.0.0.1`.  To change the number of servers, just change the `replicas` list. 
+To run the servers locally, change the ip addresses to `127.0.0.1` or just set `local = True' in `config.py`. 
 
 __Persistence:__ The servers can be run in two modes: persistent or not.  To specify this, change the `need_persistent` in `config.py` to True or False.
+In the persistent mode, servers will save states to files `record0', `recor1', etc. 
 
 
 __To run a client__, run:
@@ -55,17 +56,22 @@ The servers use a concensus algorithm to agree on a same sequence of commands.
 In particular, we implement the [RAFT algoirhtm](https://raft.github.io/raft.pdf), which was proposed as "an alternative to PAXOS".
 This algorithm can tolerate server crashes/failstops, network faults and delays, different processing speeds of different servers, etc.
 
-RAFT is a leader-follower type algorithm.  At any time, there is at most one server who is the leader in the system; other servers are followers.
-Only the leader can take requests from the client.  After taking a request, the leader broadcasts this request to other servers to ask them to add this request to their logs.  When the leader learns that the request has been replicated on a majority of servers (namely, _committed_), it executes the request (namely, applies the command to the state machhine) and replies to the client.  Followers also execute the committed requests in the logs to update the state machine, without replying to the client.
-This is only a high-level description, however.  There are many details in the RAFT algorithm to ensure that all servers have the same log of commited requests.  For example, 
+RAFT is a leader-follower type algorithm.  The full algorithm is complicated.  We only give a high-level overview here. 
+Roughly speaking, the algorithm works as follows: 
 
-* When the leader crashes and a new leader needs to be elected, some servers cannot be elected because they may have not received all the commited requests due to network delay.  We must choose a server with the "latest" log. 
+1. It works term by term.  At the beginninng of each term, a server is elected as a Leader is elected.  Other servers are followers.
 
-* When a leader is disconnected with other servers, it may add several commands to its log and cannot commit to them.  Then, a new leader may be elected among other servers.  Then, the previous leader has to become a follower and removes the committed commands in its log.
+2. Only the Leader can take requests from the client.  After taking a request, the Leader adds this request to its own log.
 
-* ...
+3. The Leader periodically broadcasts its log to the followers, asking them to replicate this log.
 
-We mention the above examples only to illustrate the difficulties of the problem and importance of details.  One should read the [original paper](https://raft.github.io/raft.pdf) (or other resources) for the full description of the RAFT algorithm. 
+4. When the Leader learns that a request on the log has been replicated on a majority of all servers, this request is considered _commited_ and the Leader executes this request (namely, applies this command to the state machhine) and responds to the client.
+
+5. Followers listen to the Leader's broadcasts, and append new entries to their own logs if the Leader's log has new entries.  The Leader also tells which log entries have been commited, and the Followers execute those entries.
+
+6. When a Follower cannot hear the Leader for some time, the Leader is considered faulty and the Follower starts a new term, becomes a Candidate, runs an election in order to be the new Leader.  To do this, the Candidate requests votes from every other servers.  If it receives a majority of votes, then it becomes Leader.  When deciding whether to vote for a Candidate, each server needs to compare its log with the Candidate's log -- only the server with the "latest" log can win the election.  This ensures that the Leader always has the "latest" log.  If no Leader can be elected due to split votes, the Followers start a new term and run election again; eventually, some Leader will be elected.  
+
+We omit many details here.  One can read the [original paper](https://raft.github.io/raft.pdf) or other resources for details.
 
 
 ## Design Decision and Code Structure
