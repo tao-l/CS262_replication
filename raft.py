@@ -355,11 +355,12 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
     
 
     """ 'Apply' the commited logs:
-        namely, put the commited log entries to apply_queue
+        namely, put the commited log entries to apply_queue to notify the upper-level server
     """
     def apply_logs(self):
         with self.lock:
             for i in range(self.last_applied+1, self.commit_index+1):
+                logging.debug(f"    RAFT [{self.my_id}] puts log entry [{i}] to apply_queue")
                 self.apply_queue.put(self.logs[i])
                 self.last_applied = i
        

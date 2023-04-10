@@ -11,7 +11,7 @@ message ChatRequest{
     int32  op = 1;           // operation code
     int32  param_1 = 2;      // additional parameter needed for the operation
     string username = 3;     // username of the user who sends the request 
-    string target_name = 4;  // the user will receives the chat message
+    string target_name = 4;  // the user who will receive the chat message
     string message = 5;
     string wildcard = 6;     // the wildcard used for list account
 }

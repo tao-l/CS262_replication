@@ -39,6 +39,7 @@ MESSAGE_LIMIT = 500
 
 SUCCESS = 0
 
+NO_ELEMENT = 1
 
  # error codes: range in [100, 199]
 OPERATION_NOT_SUPPORTED = 100
