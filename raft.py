@@ -35,7 +35,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
              my_id       : The id of the current server replica
              apply_queue : Given by the High-layer server. 
                            RAFT server puts to this queue log entries that have been commited.
-                           High-layer server will pick entires from this queue to execute. 
+                           The upper-layer server will pick entires from this queue to execute. 
     """
     def __init__(self, replicas, my_id, apply_queue, need_persistent=True):
         super().__init__()
@@ -431,8 +431,8 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                 threading.Thread(target=self.send_request_vote, args=(i, request)).start()
     
 
-    """ 'Apply' the commited logs:
-        namely, put the commited log entries to apply_queue to notify the upper-level server
+    """ 'Apply' the committed logs:
+        namely, put the committed log entries to apply_queue to notify the upper-level server
     """
     def apply_logs(self):
         with self.lock:
@@ -459,7 +459,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         self.voted_for = -1
         logging.info(self.DEBUG_information())
         logging.info(f"  RAFT [{self.my_id, self.state}] - convert to Follower")
-        self.save()   ## Persistent states chagnes. Need to save. 
+        self.save()    ## Persistent states chagne. Need to save. 
         
 
     """ Convert the current RAFT server to Candidate
@@ -482,7 +482,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
             
             self.broadcast_request_vote()
 
-            self.save()
+            self.save()     ## Persistent states chagne. Need to save.
     
     
     """ (Try to) convert the current RAFT server to Leader
