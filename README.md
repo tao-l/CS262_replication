@@ -33,7 +33,9 @@ The server offers RPC services to the client.  When receiving a RPC request from
 The state machine `state_machine` implements the main logic of the chat server.  A request can be one of the 6 operations: `{create_account, check_account, list_account, delete_account, send_message, fetch_messages}`, indicated by `request.op`.  Other parameters of the request are stored in, e.g., `request.username` and `request.message` (see `rpc_service.proto` for details).  The `state_machine.apply(request)` function executes this request and returns the response.  The server will then forward this response to the client.
 
 #### Why this design? 
-Our design completely separates the logic concensus/replication algorithm (RAFT) and the logic of the state machine (the specific chat services).
+Our design completely separates the logic of the concensus/replication algorithm (RAFT) and the logic of the state machine (the specific chat services).
 RAFT does not know anything about how the state machine is implemented and the state machine does not need to worry about replication. 
-This makes the design more modular and makes all the RAFT code, the state_machine code, and the server code useable in other problems. 
+This makes the design more modular and makes all the RAFT code, the state_machine code, and the server code useable in other problems.
+For example, if we want to implement a replicated system for another service, we only need to replace the state_machine code without changing server code and RAFT code. 
+
 
