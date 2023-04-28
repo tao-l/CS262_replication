@@ -34,6 +34,9 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
     """ Customized initialization """
     def my_init(self, replicas, my_id, need_persistent):
+        self.replicas = replicas
+        self.my_id = my_id
+
         self.state_machine = ChatStateMachine()   # state_machine
         self.results = dict()   # a dictionary that stores the response for each client request
 
@@ -44,7 +47,6 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
 
         # create a RAFT instance and start it
         self.rf = raft.RaftServiceServicer(replicas, my_id, self.apply_queue, need_persistent)
-        self.rf.my_start()
     
 
     """ The RPC service provided to the client.
@@ -107,6 +109,26 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
                     self.results[index][1] = self.state_machine.apply(request)
                     # set the event to notify the waiting thread
                     self.results[index][0].set()
+        
+
+    """ Customized start of the RPC server """
+    def my_start(self):
+        # First, start the RAFT instance
+        self.rf.my_start()
+
+        # Then, start the request applying loop
+        threading.Thread(target=self.apply_request_loop, daemon=True).start()
+        
+        # Finally, start the RPC server for the clients
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=128))
+        rpc_service_pb2_grpc.add_ChatServiceServicer_to_server( self, server )
+        id = self.my_id
+        my_ip_addr = self.replicas[id].ip_addr
+        my_client_port = self.replicas[id].client_port
+        server.add_insecure_port(my_ip_addr + ":" + my_client_port)
+        server.start()
+        print(f" ====== Chat server [{id}] starts at {my_ip_addr}:{my_client_port} =======")
+        server.wait_for_termination()
 
 
 if __name__ == "__main__":
@@ -118,18 +140,7 @@ if __name__ == "__main__":
     id = int(sys.argv[1])
     assert 0 <= id < config.n_replicas
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=128))
     servicer = ChatServiceServicer()
     servicer.my_init(config.replicas, id, need_persistent=config.need_persistent)
-    
-    threading.Thread(target=servicer.apply_request_loop, args=()).start()
-
-    rpc_service_pb2_grpc.add_ChatServiceServicer_to_server( servicer, server )
-
-    my_ip_addr = config.replicas[id].ip_addr
-    my_client_port = config.replicas[id].client_port
-    server.add_insecure_port(my_ip_addr + ":" + my_client_port)
-    server.start()
-    print(f" ====== Chat server [{id}] starts at {my_ip_addr}:{my_client_port} =======")
-    server.wait_for_termination()
+    servicer.my_start()
 

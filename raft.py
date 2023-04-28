@@ -82,7 +82,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         #  record whether we need persistency or not 
         self.need_persistent = need_persistent
         #  the file where the persistent states are saved
-        self.filename = f"record{self.my_id}"
+        self.filename = f"./RAFT_records/record{self.my_id}"
         if self.need_persistent:
             with self.lock:
                 self.retrieve()
@@ -239,7 +239,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                 self.commit_index = min(request.leader_commit, last_index)
                 # upon comit_index changes, apply logs:
                 logging.debug(f"      commit_index = {self.commit_index}" ) 
-                threading.Thread(target=self.apply_logs, args=()).start()
+                threading.Thread(target=self.apply_logs, daemon=True).start()
             
             # logging.info(f"    logs after AE: " + DEBUG.logs_to_string(self.logs))
 
@@ -304,7 +304,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                         self.commit_index = N
                         # upon comit_index changes, apply logs:
                         logging.debug(f"       commit_index = {N}")
-                        threading.Thread(target=self.apply_logs, args=()).start()
+                        threading.Thread(target=self.apply_logs, daemon=True).start()
                         break 
                 N -= 1
 
@@ -328,7 +328,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
                 request.leader_commit = self.commit_index
                 entries = self.logs[self.next_index[i] : ]
                 request.entries.extend( entries )  # use extend to deep copy entries to request.entries
-                threading.Thread(target = self.send_append_entries, args=(i, request)).start()
+                threading.Thread(target = self.send_append_entries, args=(i, request), daemon=True).start()
     
 
     """ check if candidate's log is as least as up-to-date as mine: 
@@ -428,7 +428,7 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         request.last_log_term = self.get_last_term()
         for i in range(self.n_replicas):
             if i != self.my_id:
-                threading.Thread(target=self.send_request_vote, args=(i, request)).start()
+                threading.Thread(target=self.send_request_vote, args=(i, request), daemon=True).start()
     
 
     """ 'Apply' the committed logs:
@@ -569,8 +569,8 @@ class RaftServiceServicer(rpc_service_pb2_grpc.RaftServiceServicer):
         rpc_server.add_insecure_port(my_ip_addr + ":" + raft_port)
         rpc_server.start()   # calls the gRPC start() function 
         print(f"  RAFT [{self.my_id}] RPC server starts at {my_ip_addr}:{raft_port}")
-        threading.Thread(target=rpc_server.wait_for_termination, args=()).start()
-
+        threading.Thread(target=rpc_server.wait_for_termination, daemon=True).start()
+        
         # Start the main loop
-        threading.Thread(target=self.main_loop, args=()).start()
+        threading.Thread(target=self.main_loop, daemon=True).start()
 
