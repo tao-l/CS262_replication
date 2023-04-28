@@ -45,7 +45,7 @@ class ChatServiceServicer(rpc_service_pb2_grpc.ChatServiceServicer):
         # a queue of requests that have been commited by RAFT but not applied to the state machine yet. 
         self.apply_queue = queue.Queue()
 
-        # create a RAFT instance and start it
+        # create a RAFT instance
         self.rf = raft.RaftServiceServicer(replicas, my_id, self.apply_queue, need_persistent)
     
 
